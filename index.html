@@ -3,29 +3,204 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sky Background Calculator</title>
+  <title>从 Tbg 到单像素背景功率</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body)"></script>
   <style>
-    :root { --ink:#17212b; --muted:#52606d; --line:#d9e2ec; --paper:#fff; --wash:#f3f7fa; --accent:#087f8c; }
+    :root { --ink:#17212b; --muted:#52606d; --line:#d9e2ec; --paper:#fff; --wash:#f3f7fa; --accent:#087f8c; --accent2:#d1495b; }
     * { box-sizing:border-box; }
     body { margin:0; color:var(--ink); background:linear-gradient(135deg,#e8f1f5,#f8fbfc 48%,#edf5ef); font:16px/1.7 Georgia,"Noto Serif SC",serif; }
-    main { max-width:760px; margin:64px auto; padding:0 22px 64px; }
+    main { max-width:1000px; margin:36px auto; padding:0 22px 64px; }
     article { background:var(--paper); border:1px solid var(--line); box-shadow:0 18px 55px #183b5320; padding:42px 54px; }
-    h1 { font-family:"Aptos Display","Noto Sans SC",sans-serif; font-size:32px; margin:0 0 8px; }
-    p.lead { color:var(--muted); font-size:18px; margin-top:0; }
-    ul { padding-left:20px; }
-    a { color:var(--accent); font-weight:bold; text-decoration:none; }
-    a:hover { text-decoration:underline; }
+    h1,h2,h3 { font-family:"Aptos Display","Noto Sans SC",sans-serif; line-height:1.25; }
+    h1 { font-size:36px; margin:0 0 8px; letter-spacing:0; }
+    h2 { margin-top:42px; padding-bottom:8px; border-bottom:2px solid var(--accent); font-size:24px; }
+    h3 { font-size:19px; margin-top:28px; }
+    .lead { color:var(--muted); font-size:18px; margin-top:0; }
+    .box { background:var(--wash); border-left:5px solid var(--accent); padding:14px 20px; margin:20px 0; }
+    .warning { border-left-color:var(--accent2); }
+    .eq { overflow-x:auto; padding:10px 0; }
+    table { width:100%; border-collapse:collapse; margin:16px 0; }
+    th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; }
+    th { background:#edf5f7; font-family:"Aptos",sans-serif; }
+    code { background:#eef2f5; padding:2px 5px; border-radius:3px; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    label { display:block; font-family:"Aptos",sans-serif; font-size:14px; color:var(--muted); }
+    input { width:100%; padding:8px; margin-top:4px; border:1px solid #b8c5cf; border-radius:4px; font:inherit; }
+    button { margin-top:16px; background:var(--accent); color:white; border:0; padding:10px 16px; border-radius:4px; cursor:pointer; font-weight:bold; }
+    #result { margin-top:16px; font-size:18px; }
+    .small { color:var(--muted); font-size:14px; }
+    @media (max-width:700px) { article { padding:28px 20px; } h1 { font-size:29px; } .grid { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
-  <main>
-    <article>
-      <h1>Sky Background Calculator</h1>
-      <p class="lead">Tools and derivations for sky background power calculations.</p>
-      <ul>
-        <li><a href="background_power_derivation.html">从 Tbg 到单像素背景功率 (background_power_derivation.html)</a></li>
-      </ul>
-    </article>
-  </main>
+<main>
+<article>
+  <h1>从 T<sub>bg</sub> 到单个 pixel 接收的功率</h1>
+  <p class="lead">从黑体辐射、天空与大气的辐射传输，到单像素的 throughput、滤波器和最终吸收功率。本文中的功率均指单位时间接收的能量，单位为 W。</p>
+
+  <h2>1. 先定义功率平面</h2>
+  <p>必须先说明 P 是在哪个位置定义的。常见的三个平面是：</p>
+  <table>
+    <tr><th>功率名称</th><th>位置</th><th>是否可直接进入 MKID quasiparticle 模型</th></tr>
+    <tr><td>P<sub>outside</sub></td><td>望远镜/大气上方的入射功率</td><td>不能，仍需乘大气和仪器传输率</td></tr>
+    <tr><td>P<sub>detector incident</sub></td><td>到达探测器表面的功率</td><td>还需乘吸收率</td></tr>
+    <tr><td>P<sub>abs</sub></td><td>真正被探测器吸收的功率</td><td>通常应使用这个量</td></tr>
+  </table>
+  <div class="box warning"><b>核心提醒：</b>本文最后得到的 P<sub>pixel</sub> 如果被定义为 absorbed power，才可以直接代入 MKID 的 quasiparticle 产生模型。若输入是 incident power，需要额外乘探测器吸收率。</div>
+
+  <h2>2. T<sub>bg</sub> 产生的黑体光谱</h2>
+  <p>温度为 T 的理想黑体，其单位频率、单位面积、单位立体角的光谱辐射亮度由 Planck 定律给出：</p>
+  <div class="eq">$$B_\nu(T)=\frac{2h\nu^3}{c^2}\frac{1}{\exp\!\left(h\nu/k_{\rm B}T\right)-1}.$$</div>
+  <p>如果使用波长变量，必须同时变换积分变量：</p>
+  <div class="eq">$$B_\lambda(T)=\frac{2hc^2}{\lambda^5}\frac{1}{\exp\!\left(hc/\lambda k_{\rm B}T\right)-1}, \qquad B_\nu\,d\nu=B_\lambda\,d\lambda.$$</div>
+  <p>因此不能把 B<sub>ν</sub> 直接对 dλ 积分；频率表达式和波长表达式的 Jacobian 不同。</p>
+
+  <h2>3. 从外部天空到望远镜入口</h2>
+  <p>这里的 T<sub>bg</sub> 应理解为<strong>大气上方的外部背景</strong>。如果只考虑宇宙微波背景，应取 T<sub>bg</sub> = T<sub>CMB</sub> = 2.725 K；它不是地面望远镜看到的总天空温度。</p>
+  <p>若天空背景可以近似为温度 T<sub>bg</sub> 的黑体，并且大气温度为 T<sub>atm</sub>，大气频率透过率为 t<sub>ν</sub>，则地面看到的天空辐射可写成一层均匀大气的近似：</p>
+  <div class="eq">$$I_{\nu,\rm sky}=t_\nu B_\nu(T_{\rm bg})+\left(1-t_\nu\right)B_\nu(T_{\rm atm}).$$</div>
+  <p>第一项是外部背景透过大气后的部分；第二项是大气吸收外部辐射后产生的自身热发射。这个形式来自 Kirchhoff 定律：对不透明度为 1 − t<sub>ν</sub> 的热层，其发射率近似为 1 − t<sub>ν</sub>。如果你已经有了包含大气发射的有效天空亮度 I<sub>ν, sky</sub>，就不能再把大气发射项加一次。</p>
+  <p>透过率通常由光学厚度给出：</p>
+  <div class="eq">$$t_\nu(X)=\exp\left[-\tau_\nu X\right],$$</div>
+  <p>其中 X 是 air mass。天顶观测时 X ≃ 1，因此 τ<sub>ν</sub> = −ln t<sub>ν,0</sub>。例如 t<sub>450</sub> = 0.40 时，τ<sub>450</sub> = 0.916。</p>
+
+  <h2>4. 加入望远镜和仪器自身发射</h2>
+  <p>望远镜和每个温暖光学元件都可能发射辐射。若用一个简化的望远镜项表示：</p>
+  <div class="eq">$$I_{\nu,\rm in}=I_{\nu,\rm sky}+\epsilon_{\rm tel}B_\nu(T_{\rm tel})+\sum_i I_{\nu,i},$$</div>
+  <p>其中 ε<sub>tel</sub> 是���远镜有效发射率。对多个串联光学元件，严格计算需要逐层进行辐射传输；每一层的贡献大致具有：</p>
+  <div class="eq">$$dI_{\nu,i}\sim \epsilon_i B_\nu(T_i)\times(\text{位于该元件之后的传输率}).$$</div>
+  <p>所以 SCUBA-2 的背景不是单独的天空黑体，而是 sky、atmosphere、telescope 和 instrument emission 的总和。</p>
+
+  <h2>5. 单个 pixel 如何接收辐射</h2>
+  <p>单像素接收功率的最一般形式是：</p>
+  <div class="eq">$$P_{\rm pix}=\int_{\nu_1}^{\nu_2}\int_{\Omega_{\rm pix}}A_{\rm eff}(\nu,\Omega)\,\eta_{\rm pre}(\nu,\Omega)\,I_{\nu,\rm in}(\nu,\Omega)\,d\Omega\,d\nu.$$</div>
+  <p>这里：</p>
+  <ul>
+    <li>A<sub>eff</sub>：像素看到的有效 collecting area；</li>
+    <li>Ω<sub>pix</sub>：单像素 beam/FOV 的立体角；</li>
+    <li>AΩ：单像素的 optical throughput 或 etendue；</li>
+    <li>η<sub>pre</sub>：滤波器、窗口、反射镜、波导等在探测器吸收之前的效率；</li>
+    <li>ν₁、ν₂：实际通带边界。</li>
+  </ul>
+  <p>如果背景在单像素视场内均匀，且 A、η 可以近似与角度无关：</p>
+  <div class="eq">$$P_{\rm pix}\simeq A\Omega_{\rm pix}\int_{\nu_1}^{\nu_2}\eta_{\rm pre}(\nu)I_{\nu,\rm in}(\nu)\,d\nu.$$</div>
+
+  <h2>6. 从 incident power 到 absorbed power</h2>
+  <p>若探测器吸收率为 η<sub>abs</sub>(ν)，则真正吸收的功率是：</p>
+  <div class="eq">$$P_{\rm abs}=A\Omega_{\rm pix}\int_{\nu_1}^{\nu_2}\eta_{\rm pre}(\nu)\eta_{\rm abs}(\nu)I_{\nu,\rm in}(\nu)\,d\nu.$$</div>
+  <p>定义总光学效率 η<sub>opt</sub>(ν) = η<sub>pre</sub>(ν)η<sub>abs</sub>(ν)，则：</p>
+  <div class="eq">$$\boxed{P_{\rm abs}=A\Omega_{\rm pix}\int_{\nu_1}^{\nu_2}\eta_{\rm opt}(\nu)I_{\nu,\rm in}(\nu)\,d\nu.}$$</div>
+  <p>若通带内的效率和辐射亮度都近似常数：</p>
+  <div class="eq">$$P_{\rm abs}\simeq A\Omega_{\rm pix}\,\eta_{\rm opt}\,I_{\nu,\rm in}(\nu_0)\,\Delta\nu.$$</div>
+  <p>这只是窄带估算。对于 SCUBA-2，应优先使用实测 bandpass η(ν)，而不是只使用中心频率和矩形带宽。</p>
+
+  <h2>7. AΩ 与 FOV 的关系</h2>
+  <p>总相机 FOV 不应代入单像素功率。单像素功率只使用该像素自己的 Ω<sub>pix</sub>：</p>
+  <div class="eq">$$\Omega_{\rm pix}\simeq\frac{\pi\theta_{\rm beam}^2}{4\ln2} \quad \text{(Gaussian beam)},$$</div>
+  <p>其中 θ<sub>beam</sub> 用弧度表示。对于理想单模系统，还常有：</p>
+  <div class="eq">$$A\Omega\simeq\lambda^2.$$</div>
+  <p>这解释了为什么扩展背景下，单像素功率主要由单像素的模式数和 throughput 决定，而不是由整台相机的几十平方 arcmin FOV 决定。</p>
+
+  <h2>8. 与 SCUBA-2 Table 1 的对应</h2>
+  <p>SCUBA-2 Table 1 给出的 450 μm 背景功率为 70--120 pW，850 μm 为 7--16 pW。论文明确说明这些数值来自一个继承自 SCUBA 的详细背景模型：</p>
+  <ul>
+    <li>最佳天气采用 450 μm 和 850 μm 的天顶透过率分别为 40% 和 85%；</li>
+    <li>最差天气采用 3% 和 40%；</li>
+    <li>模型背景包括 sky、telescope 和 instrument；</li>
+    <li>SCUBA-2 的滤波器半功率带宽约为 32 μm 和 85 μm；</li>
+    <li>论文给出的窗口、滤波器和 detector absorption 的净传输率约为 40%。</li>
+  </ul>
+  <p>因此 Table 1 的计算逻辑可以表示为：</p>
+  <div class="eq">$$T_{\rm bg},\ t_\nu,\ T_i,\ \epsilon_i,\ \eta(\nu),\ A\Omega_{\rm pix} \ \longrightarrow\ P_{\rm bg,pix}.$$</div>
+  <div class="box warning"><b>可复现性边界：</b>论文正文没有列出每个光学元件的温度、发射率、完整 bandpass 和 AΩ 数值，所以不能只靠 Table 1 的文字精确反推出 70 pW。要精确复现，需要论文所引用的详细模型或 Hollister (2009) thesis。</div>
+
+  <h2>9. 最适合 MKID 的实现形式</h2>
+  <p>对数值频率网格，建议直接计算：</p>
+  <div class="eq">$$P_{\rm abs}\approx A\Omega\sum_j \eta_{\rm opt}(\nu_j)I_{\nu,\rm in}(\nu_j)\Delta\nu_j.$$</div>
+  <p>然后把 P<sub>abs</sub> 代入 quasiparticle 模型，例如：</p>
+  <div class="eq">$$n_{\rm qp}=\sqrt{n_{\rm base}^2+\frac{\eta_{\rm pb}P_{\rm abs}}{\Delta R_{\rm qp}V}}.$$</div>
+  <p>这里的 P<sub>abs</sub> 必须和 η<sub>pb</sub> 的定义一致：如果 η<sub>pb</sub> 描述的是被吸收功率转化为 quasiparticle 能量的比例，就不能再把 detector absorption 重复乘一次。</p>
+
+  <h2>10. 简化数值估算器</h2>
+  <p class="small">计算器先计算 CMB 和大气辐射，再加入望远镜和仪器自身热发射，得到到达 pixel 的总亮度；然后在中心频率处反解等效天空温度，最后计算单 pixel 吸收功率。默认值只是典型估算，不代表 SCUBA-2 的完整光学模型。</p>
+  <div class="grid">
+    <label>透过率 tν<input id="transmission" type="number" value="0.4" min="0" max="1" step="0.01"></label>
+    <label>CMB 温度 Tcmb (K)<input id="tcmb" type="number" value="2.725" step="0.001"></label>
+    <label>大气物理温度 Tatm (K)<input id="tatm" type="number" value="260" step="1"></label>
+    <label>望远镜温度 Ttel (K)<input id="ttel" type="number" value="270" step="1"></label>
+    <label>望远镜发射率 εtel<input id="etel" type="number" value="0.02" min="0" max="1" step="0.001"></label>
+    <label>仪器后端透过率 tinst<input id="tinst" type="number" value="0.4" min="0" max="1" step="0.01"></label>
+    <label>仪器温度 Tinst (K)<input id="tinstTemp" type="number" value="50" step="1"></label>
+    <label>仪器有效发射率 εinst<input id="einst" type="number" value="0.05" min="0" max="1" step="0.001"></label>
+    <label>中心波长 λ₀ (μm)<input id="wave" type="number" value="850" step="1"></label>
+    <label>带宽 Δλ (μm)<input id="bw" type="number" value="85" step="1"></label>
+    <label>单像素 throughput AΩ (m² sr)<input id="etendue" type="number" value="1e-6" step="1e-8"></label>
+    <label>探测器吸收率 ηabs<input id="eff" type="number" value="0.4" min="0" max="1" step="0.01"></label>
+  </div>
+  <button type="button" onclick="estimatePower()">计算 absorbed power</button>
+  <div class="box">
+    <b>计算公式</b>
+    <div class="eq">$$I_{\nu,\rm sky}=t_\nu B_\nu(T_{\rm CMB})+(1-t_\nu)B_\nu(T_{\rm atm})$$</div>
+    <div class="eq">$$I_{\nu,\rm tel}= (1-\epsilon_{\rm tel})I_{\nu,\rm sky}+\epsilon_{\rm tel}B_\nu(T_{\rm tel})$$</div>
+    <div class="eq">$$I_{\nu,\rm det}=t_{\rm inst}I_{\nu,\rm tel}+\epsilon_{\rm inst}B_\nu(T_{\rm inst})$$</div>
+    <div class="eq">$$B_\nu(T_{\rm sky,eff})=I_{\nu,\rm det}$$</div>
+    <div class="eq">$$P_{\rm abs}=A\Omega\,\eta_{\rm abs}\,I_{\nu,\rm det}\,\Delta\nu$$</div>
+    <div class="eq">$$\Delta\nu\simeq\frac{c}{\lambda_0^2}\Delta\lambda$$</div>
+  </div>
+  <div id="result">请输入参数后计算。</div>
+
+  <h2>符号总结</h2>
+  <table>
+    <tr><th>符号</th><th>含义</th></tr>
+    <tr><td>T<sub>bg</sub></td><td>外部背景的物理温度或等效黑体温度</td></tr>
+    <tr><td>I<sub>ν</sub></td><td>到达像素方向上的光谱辐射亮度</td></tr>
+    <tr><td>t<sub>ν</sub></td><td>大气透过率</td></tr>
+    <tr><td>AΩ</td><td>单像素 optical throughput</td></tr>
+    <tr><td>η<sub>opt</sub></td><td>包含传输和吸收的总效率</td></tr>
+    <tr><td>P<sub>abs</sub></td><td>探测器真正吸收的光功率</td></tr>
+  </table>
+</article>
+</main>
+<script>
+  const h = 6.62607015e-34;
+  const c = 299792458;
+  const k = 1.380649e-23;
+  function planckNu(nu, temperature) {
+    const x = h * nu / (k * temperature);
+    return 2 * h * Math.pow(nu, 3) / (c * c) / Math.expm1(x);
+  }
+  function inversePlanckNu(nu, brightness) {
+    const numerator = h * nu;
+    const denominator = k * Math.log1p((2 * h * Math.pow(nu, 3) / (c * c)) / brightness);
+    return numerator / denominator;
+  }
+  function estimatePower() {
+    const transmission = Number(document.getElementById('transmission').value);
+    const cmbTemperature = Number(document.getElementById('tcmb').value);
+    const atmosphereTemperature = Number(document.getElementById('tatm').value);
+    const telescopeTemperature = Number(document.getElementById('ttel').value);
+    const telescopeEmissivity = Number(document.getElementById('etel').value);
+    const instrumentTransmission = Number(document.getElementById('tinst').value);
+    const instrumentTemperature = Number(document.getElementById('tinstTemp').value);
+    const instrumentEmissivity = Number(document.getElementById('einst').value);
+    const wavelength = Number(document.getElementById('wave').value) * 1e-6;
+    const bandwidthLambda = Number(document.getElementById('bw').value) * 1e-6;
+    const etendue = Number(document.getElementById('etendue').value);
+    const efficiency = Number(document.getElementById('eff').value);
+    const nu0 = c / wavelength;
+    const deltaNu = c * bandwidthLambda / (wavelength * wavelength);
+    const skyBrightness = transmission * planckNu(nu0, cmbTemperature) + (1 - transmission) * planckNu(nu0, atmosphereTemperature);
+    const telescopeBrightness = telescopeEmissivity * planckNu(nu0, telescopeTemperature);
+    const telescopeOutput = (1 - telescopeEmissivity) * skyBrightness + telescopeBrightness;
+    const instrumentBrightness = instrumentEmissivity * planckNu(nu0, instrumentTemperature);
+    const detectorBrightness = instrumentTransmission * telescopeOutput + instrumentBrightness;
+    const effectiveTemperature = inversePlanckNu(nu0, detectorBrightness);
+    const power = etendue * efficiency * detectorBrightness * deltaNu;
+    document.getElementById('result').innerHTML = '等效天空背景温度: <b>' + effectiveTemperature.toFixed(3) + ' K</b><br>大气后亮度: ' + skyBrightness.toExponential(4) + ' W m⁻² Hz⁻¹ sr⁻¹<br>望远镜热辐射贡献: ' + telescopeBrightness.toExponential(4) + ' W m⁻² Hz⁻¹ sr⁻¹<br>仪器热辐射贡献: ' + instrumentBrightness.toExponential(4) + ' W m⁻² Hz⁻¹ sr⁻¹<br>到达 pixel 的总亮度: ' + detectorBrightness.toExponential(4) + ' W m⁻² Hz⁻¹ sr⁻¹<br>单 pixel 吸收功率: <b>' + power.toExponential(4) + ' W = ' + (power * 1e12).toFixed(4) + ' pW</b>';
+  }
+</script>
 </body>
 </html>
